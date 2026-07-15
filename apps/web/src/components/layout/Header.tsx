@@ -1,9 +1,7 @@
 'use client';
 
-import { auth } from '@/lib/firebase';
-import { useUser } from '@/lib/hooks/useUser';
-import { Shield } from 'lucide-react';
-import { ROLES } from '@botrade/shared';
+import { useAuthRole } from '@/lib/hooks/useAuthRole';
+import { Shield, User } from 'lucide-react';
 
 interface HeaderProps {
   title: string;
@@ -11,7 +9,7 @@ interface HeaderProps {
 }
 
 export function Header({ title, subtitle }: HeaderProps) {
-  const { user } = useUser(auth.currentUser?.uid);
+  const { isSuperAdmin, loading } = useAuthRole();
 
   return (
     <header className="flex items-start justify-between border-b border-border bg-white px-8 py-6">
@@ -19,10 +17,25 @@ export function Header({ title, subtitle }: HeaderProps) {
         <h1 className="text-2xl font-bold text-secondary">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
       </div>
-      {user?.role === ROLES.SUPERADMIN && (
-        <div className="flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-          <Shield className="h-3 w-3" />
-          Superadmin
+      {!loading && (
+        <div
+          className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${
+            isSuperAdmin
+              ? 'bg-primary/10 text-primary'
+              : 'bg-muted text-muted-foreground'
+          }`}
+        >
+          {isSuperAdmin ? (
+            <>
+              <Shield className="h-3 w-3" />
+              Superadmin
+            </>
+          ) : (
+            <>
+              <User className="h-3 w-3" />
+              Usuario
+            </>
+          )}
         </div>
       )}
     </header>
