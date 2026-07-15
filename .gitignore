@@ -1,2 +1,43 @@
+# Secrets and local config
 keygit
 firebase_config
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+apps/functions/lib/
+
+# Firebase
+.firebase/
+firestore-debug.log
+ui-debug.log
+firebase-debug.log
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Misc
+*.pem
+.vercel

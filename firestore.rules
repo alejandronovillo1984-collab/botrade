@@ -1,0 +1,59 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && request.auth.token.role == 'superadmin';
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Perfil de usuario
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isSuperAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    // Cuentas de exchange: escritura solo desde Functions
+    match /exchangeAccounts/{accountId} {
+      allow read: if isOwner(resource.data.userId) || isSuperAdmin();
+      allow write: if false;
+    }
+
+    // Bots: escritura solo desde Functions
+    match /bots/{botId} {
+      allow read: if isOwner(resource.data.userId) || isSuperAdmin();
+      allow write: if false;
+    }
+
+    // Trades: escritura solo desde Functions
+    match /trades/{tradeId} {
+      allow read: if isOwner(resource.data.userId) || isSuperAdmin();
+      allow write: if false;
+    }
+
+    // Señales: lectura autenticada, escritura solo Functions
+    match /signals/{signalId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    // Logs: lectura autenticada, escritura solo Functions
+    match /logs/{logId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    // Configuración global: solo superadmin
+    match /adminConfig/{document} {
+      allow read, write: if isSuperAdmin();
+    }
+  }
+}

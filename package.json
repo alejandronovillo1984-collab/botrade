@@ -1,0 +1,25 @@
+{
+  "name": "botrade",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bot de trading multi-usuario y multi-exchange para NASDAQ",
+  "scripts": {
+    "dev:web": "pnpm --filter web dev",
+    "dev:functions": "pnpm --filter functions watch",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "publicar": "git add -A && git commit -m \"chore: publish web to main\" && git push origin main",
+    "desplegar": "firebase deploy --only functions",
+    "deploy:all": "firebase deploy",
+    "emulators": "firebase emulators:start --only auth,firestore,functions",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
+  },
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
