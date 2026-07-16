@@ -1,7 +1,7 @@
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore } from 'firebase/firestore';
-import { getFunctions, Functions } from 'firebase/functions';
+import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
+import { getAuth, type Auth } from 'firebase/auth';
+import { getFirestore, type Firestore } from 'firebase/firestore';
+import { getFunctions, type Functions } from 'firebase/functions';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -13,46 +13,22 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-const hasValidConfig = Boolean(firebaseConfig.apiKey && firebaseConfig.appId);
+const app: FirebaseApp =
+  getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-let app: FirebaseApp | null = null;
-let _auth: Auth | null = null;
-let _db: Firestore | null = null;
-let _functions: Functions | null = null;
+// During `next build`, env vars may not be available, so we skip
+// getAuth/getFirestore/getFunctions to avoid throwing at import time.
+// At runtime the config is valid and real instances are created.
+const hasConfig = Boolean(firebaseConfig.apiKey && firebaseConfig.appId);
 
-function getAppInstance(): FirebaseApp {
-  if (app) return app;
-  if (getApps().length > 0) {
-    app = getApp();
-  } else if (hasValidConfig) {
-    app = initializeApp(firebaseConfig);
-  } else {
-    throw new Error(
-      'Firebase config missing. Set NEXT_PUBLIC_FIREBASE_* env vars.'
-    );
-  }
-  return app;
-}
+export const auth: Auth = hasConfig
+  ? getAuth(app)
+  : (undefined as unknown as Auth);
+export const db: Firestore = hasConfig
+  ? getFirestore(app)
+  : (undefined as unknown as Firestore);
+export const functions: Functions = hasConfig
+  ? getFunctions(app)
+  : (undefined as unknown as Functions);
 
-export const auth = new Proxy({} as Auth, {
-  get(_t, prop) {
-    if (!_auth) _auth = getAuth(getAppInstance());
-    return Reflect.get(_auth, prop);
-  },
-}) as Auth;
-
-export const db = new Proxy({} as Firestore, {
-  get(_t, prop) {
-    if (!_db) _db = getFirestore(getAppInstance());
-    return Reflect.get(_db, prop);
-  },
-}) as Firestore;
-
-export const functions = new Proxy({} as Functions, {
-  get(_t, prop) {
-    if (!_functions) _functions = getFunctions(getAppInstance());
-    return Reflect.get(_functions, prop);
-  },
-}) as Functions;
-
-export default undefined;
+export default app;
