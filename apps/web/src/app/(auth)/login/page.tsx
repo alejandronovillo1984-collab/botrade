@@ -1,6 +1,8 @@
 import { LoginForm } from '@/components/auth/LoginForm';
 import Image from 'next/image';
 
+export const dynamic = 'force-dynamic';
+
 export default function LoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-muted p-4">
