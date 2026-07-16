@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'botrade - Bot de Trading',
+  title: 'Botrade',
   description: 'Plataforma multi-usuario de bots de trading para NASDAQ',
 };
 

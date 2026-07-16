@@ -1,7 +1,7 @@
+export const dynamic = 'force-dynamic';
+
 import { LoginForm } from '@/components/auth/LoginForm';
 import Image from 'next/image';
-
-export const dynamic = 'force-dynamic';
 
 export default function LoginPage() {
   return (

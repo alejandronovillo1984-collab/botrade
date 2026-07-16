@@ -1,8 +1,9 @@
+export const dynamic = 'force-dynamic';
+
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
 
-export const dynamic = 'force-dynamic';
 import {
   addDoc,
   collection,
