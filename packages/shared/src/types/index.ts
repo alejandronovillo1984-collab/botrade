@@ -4,3 +4,4 @@ export * from './exchange';
 export * from './bot';
 export * from './signal';
 export * from './strategy';
+export * from './observer';

@@ -13,6 +13,12 @@ export function LoginForm() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const getRedirectUrl = () => {
+    if (typeof window === 'undefined') return '/';
+    const params = new URLSearchParams(window.location.search);
+    return params.get('redirect') || '/';
+  };
+
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -21,7 +27,7 @@ export function LoginForm() {
       const credential = await signInWithEmailAndPassword(auth, email, password);
       const idToken = await credential.user.getIdToken();
       setSessionCookie(idToken);
-      router.push('/');
+      router.push(getRedirectUrl());
     } catch (err) {
       setError('Error al iniciar sesión. Verificá tus credenciales.');
     } finally {
@@ -37,7 +43,7 @@ export function LoginForm() {
       const credential = await signInWithPopup(auth, provider);
       const idToken = await credential.user.getIdToken();
       setSessionCookie(idToken);
-      router.push('/');
+      router.push(getRedirectUrl());
     } catch (err) {
       setError('Error al iniciar sesión con Google.');
     } finally {

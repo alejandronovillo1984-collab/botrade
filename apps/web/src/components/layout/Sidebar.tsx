@@ -14,6 +14,7 @@ import {
   LogOut,
   Shield,
   Sparkles,
+  Eye,
 } from 'lucide-react';
 import { ROLES } from '@botrade/shared';
 
@@ -26,6 +27,7 @@ const userNavItems = [
 const adminNavItems = [
   { href: '/admin/users', label: 'Usuarios', icon: Users },
   { href: '/admin/strategies', label: 'Estrategias', icon: Sparkles },
+  { href: '/admin/observers', label: 'Observadores', icon: Eye },
   { href: '/admin/settings', label: 'Configuración', icon: Settings },
 ];
 

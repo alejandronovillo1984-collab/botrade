@@ -62,5 +62,11 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create, update, delete: if isSuperAdmin();
     }
+
+    // Observadores: lectura autenticada, escritura solo superadmin
+    match /observers/{observerId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isSuperAdmin();
+    }
   }
 }

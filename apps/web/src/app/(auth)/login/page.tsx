@@ -16,10 +16,6 @@ export default function LoginPage() {
             className="mb-4 rounded-lg object-contain"
             priority
           />
-          <h1 className="text-center text-2xl font-bold text-secondary">botrade</h1>
-          <p className="text-center text-sm text-muted-foreground">
-            Iniciá sesión para acceder a tu panel
-          </p>
         </div>
         <LoginForm />
       </div>
