@@ -13,22 +13,23 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-const app: FirebaseApp =
-  getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-
-// During `next build`, env vars may not be available, so we skip
-// getAuth/getFirestore/getFunctions to avoid throwing at import time.
-// At runtime the config is valid and real instances are created.
 const hasConfig = Boolean(firebaseConfig.apiKey && firebaseConfig.appId);
 
-export const auth: Auth = hasConfig
-  ? getAuth(app)
-  : (undefined as unknown as Auth);
-export const db: Firestore = hasConfig
-  ? getFirestore(app)
-  : (undefined as unknown as Firestore);
-export const functions: Functions = hasConfig
-  ? getFunctions(app)
-  : (undefined as unknown as Functions);
+// Solo inicializamos Firebase si la configuración es válida.
+// Durante `next build` las env vars pueden no estar disponibles,
+// y nunca queremos que la importación del módulo lance una excepción
+// (rompería el arranque del server y el Puerto no se bindearía).
+let app: FirebaseApp | null = null;
+try {
+  if (hasConfig) {
+    app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+  }
+} catch {
+  app = null;
+}
+
+export const auth = (app ? getAuth(app) : null) as Auth;
+export const db = (app ? getFirestore(app) : null) as Firestore;
+export const functions = (app ? getFunctions(app) : null) as Functions;
 
 export default app;
