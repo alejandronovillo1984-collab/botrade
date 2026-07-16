@@ -19,12 +19,13 @@ service cloud.firestore {
       allow create: if isOwner(userId);
       allow update: if isOwner(userId) || isSuperAdmin();
       allow delete: if isSuperAdmin();
-    }
 
-    // Cuentas de exchange: escritura solo desde Functions
-    match /exchangeAccounts/{accountId} {
-      allow read: if isOwner(resource.data.userId) || isSuperAdmin();
-      allow write: if false;
+      // Subcolección de exchanges (cuentas vinculadas) del usuario.
+      // El owner escribe directo desde el frontend.
+      match /exchanges/{accountId} {
+        allow read: if isOwner(userId) || isSuperAdmin();
+        allow create, update, delete: if isOwner(userId);
+      }
     }
 
     // Bots: escritura solo desde Functions
@@ -54,6 +55,12 @@ service cloud.firestore {
     // Configuración global: solo superadmin
     match /adminConfig/{document} {
       allow read, write: if isSuperAdmin();
+    }
+
+    // Estrategias: lectura autenticada, escritura solo superadmin
+    match /strategies/{strategyId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isSuperAdmin();
     }
   }
 }

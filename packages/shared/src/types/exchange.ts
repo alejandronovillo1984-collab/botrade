@@ -43,7 +43,6 @@ export type ExchangeCredentials =
 
 export interface ExchangeAccount {
   id: string;
-  userId: string;
   exchangeId: string;
   label: string;
   credentials: ExchangeCredentials;
@@ -51,4 +50,34 @@ export interface ExchangeAccount {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ExchangeAccountCreateInput {
+  exchangeId: string;
+  label?: string;
+  token: string;
+  isTestnet?: boolean;
+}
+
+export const SUPPORTED_EXCHANGES: readonly ExchangeDefinition[] = [
+  {
+    id: 'ninjatrader',
+    name: 'NinjaTrader',
+    adapterType: 'ninjatrader',
+    supportedMarkets: ['futures'],
+    credentialType: EXCHANGE_CREDENTIAL_TYPES.OAUTH,
+    isActive: true,
+  },
+  {
+    id: 'tradovate',
+    name: 'Tradovate',
+    adapterType: 'tradovate',
+    supportedMarkets: ['futures'],
+    credentialType: EXCHANGE_CREDENTIAL_TYPES.OAUTH,
+    isActive: true,
+  },
+] as const;
+
+export function findSupportedExchange(id: string): ExchangeDefinition | undefined {
+  return SUPPORTED_EXCHANGES.find((e) => e.id === id);
 }

@@ -16,6 +16,7 @@ export const COLLECTIONS = {
   BOTS: 'bots',
   TRADES: 'trades',
   SIGNALS: 'signals',
+  STRATEGIES: 'strategies',
   LOGS: 'logs',
   ADMIN_CONFIG: 'adminConfig',
 } as const;

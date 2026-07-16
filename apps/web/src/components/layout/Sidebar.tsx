@@ -9,12 +9,11 @@ import {
   LayoutDashboard,
   Bot,
   Building2,
-  Bell,
-  Bug,
   Settings,
   Users,
   LogOut,
   Shield,
+  Sparkles,
 } from 'lucide-react';
 import { ROLES } from '@botrade/shared';
 
@@ -22,13 +21,11 @@ const userNavItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/bots', label: 'Bots', icon: Bot },
   { href: '/exchanges', label: 'Exchanges', icon: Building2 },
-  { href: '/signals', label: 'Señales', icon: Bell },
-  { href: '/debug', label: 'Debug', icon: Bug },
 ];
 
 const adminNavItems = [
-  { href: '/admin', label: 'Admin', icon: Shield },
   { href: '/admin/users', label: 'Usuarios', icon: Users },
+  { href: '/admin/strategies', label: 'Estrategias', icon: Sparkles },
   { href: '/admin/settings', label: 'Configuración', icon: Settings },
 ];
 

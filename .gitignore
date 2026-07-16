@@ -1,6 +1,7 @@
 # Secrets and local config
 keygit
 firebase_config
+*-firebase-adminsdk-*.json
 .env
 .env.local
 .env.*.local
@@ -41,3 +42,9 @@ Thumbs.db
 # Misc
 *.pem
 .vercel
+
+# Assets sueltos en la raíz (no se commitean, se copian a public/ desde donde se necesiten)
+/favicon.ico
+/logobotradig.jpg
+/logopolar.png
+/apps/botrade.jpg

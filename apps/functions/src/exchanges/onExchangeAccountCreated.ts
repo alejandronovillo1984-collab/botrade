@@ -8,13 +8,13 @@ import { COLLECTIONS, DEFAULT_REGION } from '../config';
  */
 export const onExchangeAccountCreated = onDocumentCreated(
   {
-    document: `${COLLECTIONS.EXCHANGE_ACCOUNTS}/{accountId}`,
+    document: `${COLLECTIONS.USERS}/{userId}/${COLLECTIONS.EXCHANGES}/{accountId}`,
     region: DEFAULT_REGION,
   },
   async (event) => {
     const data = event.data?.data();
     logger.info(`Exchange account created: ${event.params.accountId}`, {
-      userId: data?.userId,
+      userId: event.params.userId,
       exchangeId: data?.exchangeId,
     });
   }

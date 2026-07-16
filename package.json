@@ -10,7 +10,7 @@
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "publicar": "git add -A && git commit -m \"chore: publish web to main\" && git push origin main",
-    "desplegar": "firebase deploy --only functions",
+    "desplegar": "bash scripts/deploy-functions.sh",
     "deploy:all": "firebase deploy",
     "emulators": "firebase emulators:start --only auth,firestore,functions",
     "typecheck": "pnpm -r typecheck"
@@ -22,6 +22,6 @@
   },
   "packageManager": "pnpm@10.34.5",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   }
 }

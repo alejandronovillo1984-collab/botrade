@@ -3,3 +3,4 @@ export * from './role';
 export * from './exchange';
 export * from './bot';
 export * from './signal';
+export * from './strategy';

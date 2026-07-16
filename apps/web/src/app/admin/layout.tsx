@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
-import { auth } from '@/lib/firebase';
 import { cookies } from 'next/headers';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
 
 export default async function AdminLayout({
   children,
@@ -16,12 +16,5 @@ export default async function AdminLayout({
     redirect('/login');
   }
 
-  return (
-    <div className="min-h-screen bg-muted">
-      <div className="border-b border-border bg-secondary px-8 py-4 text-secondary-foreground">
-        <h1 className="text-lg font-bold">Panel de Superadmin</h1>
-      </div>
-      <main>{children}</main>
-    </div>
-  );
+  return <DashboardLayout>{children}</DashboardLayout>;
 }

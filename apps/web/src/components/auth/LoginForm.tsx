@@ -4,6 +4,7 @@ import { auth } from '@/lib/firebase';
 import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword } from 'firebase/auth';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { setSessionCookie } from '@/lib/session';
 
 export function LoginForm() {
   const router = useRouter();
@@ -17,7 +18,9 @@ export function LoginForm() {
     setLoading(true);
     setError('');
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      const idToken = await credential.user.getIdToken();
+      setSessionCookie(idToken);
       router.push('/');
     } catch (err) {
       setError('Error al iniciar sesión. Verificá tus credenciales.');
@@ -31,7 +34,9 @@ export function LoginForm() {
     setError('');
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      const credential = await signInWithPopup(auth, provider);
+      const idToken = await credential.user.getIdToken();
+      setSessionCookie(idToken);
       router.push('/');
     } catch (err) {
       setError('Error al iniciar sesión con Google.');

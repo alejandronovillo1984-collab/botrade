@@ -54,7 +54,7 @@ botrade/
 | UI | Componentes custom básicos (sin shadcn por ahora) |
 | Estado | Zustand + TanStack Query |
 | Auth | Firebase Auth + custom claims |
-| Backend | Firebase Functions v2 (Node.js 20) |
+| Backend | Firebase Functions v2 (Node.js 22) |
 | DB | Firestore |
 | Validación | Zod |
 | Iconos | lucide-react |
@@ -87,7 +87,7 @@ pnpm emulators        # Inicia emuladores de auth, firestore y functions
 ### Detalle de scripts
 
 - `publicar`: como el frontend está conectado a **Firebase App Hosting** en la rama `main`, publicar el front significa hacer `git push origin main`. El script hace un commit automático con el mensaje `chore: publish web to main` y luego el push. **Revisá los cambios antes de ejecutarlo**.
-- `desplegar`: ejecuta `firebase deploy --only functions`, subiendo solo las Cloud Functions.
+- `desplegar`: ejecuta `scripts/deploy-functions.sh`, que compila `packages/shared` y `apps/functions`, resuelve la dependencia workspace (`@botrade/shared`) en un directorio temporal y luego ejecuta `firebase deploy --only functions`. Es necesario porque Cloud Functions no entiende el protocolo `workspace:*` de pnpm.
 - `deploy:all`: ejecuta `firebase deploy` completo (functions + hosting + firestore rules).
 
 ---

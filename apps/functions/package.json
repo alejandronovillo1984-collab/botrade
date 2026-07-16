@@ -13,16 +13,16 @@
     "deploy": "firebase deploy --only functions"
   },
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "dependencies": {
     "@botrade/shared": "workspace:*",
     "firebase-admin": "^12.7.0",
-    "firebase-functions": "^6.1.1",
+    "firebase-functions": "^7.2.5",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/node": "^20.17.9",
+    "@types/node": "^22.13.10",
     "typescript": "^5.7.2"
   }
 }

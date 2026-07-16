@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "predev": "node -e \"require('fs').rmSync('.next', { recursive: true, force: true })\"",
+    "dev": "next dev --turbo",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -21,7 +22,7 @@
     "lucide-react": "^0.468.0"
   },
   "devDependencies": {
-    "@types/node": "^20.17.9",
+    "@types/node": "^22.13.10",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.20",
