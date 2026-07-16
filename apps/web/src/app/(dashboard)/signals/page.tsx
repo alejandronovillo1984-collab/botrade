@@ -2,6 +2,8 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Button';
 
+export const dynamic = 'force-dynamic';
+
 export default function SignalsPage() {
   return (
     <DashboardLayout>
