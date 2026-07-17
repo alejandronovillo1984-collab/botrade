@@ -5,11 +5,14 @@ import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword } from 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { setSessionCookie } from '@/lib/session';
+import Link from 'next/link';
+import { Eye, EyeOff } from 'lucide-react';
 
 export function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -67,14 +70,23 @@ export function LoginForm() {
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-secondary">Contraseña</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-md border border-border px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-            placeholder="••••••••"
-            required
-          />
+          <div className="relative">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full rounded-md border border-border px-3 py-2 pr-10 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              placeholder="••••••••"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
         <button
           type="submit"
@@ -119,6 +131,13 @@ export function LoginForm() {
         </svg>
         Ingresar con Google
       </button>
+
+      <p className="text-center text-sm text-muted-foreground">
+        ¿No tenés cuenta?{' '}
+        <Link href="/register" className="font-medium text-primary hover:underline">
+          Registrate
+        </Link>
+      </p>
 
       {error && (
         <div className="rounded-md bg-red-50 p-3 text-sm text-red-600">

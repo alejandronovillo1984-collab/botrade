@@ -19,15 +19,21 @@ import { db } from '@/lib/firebase';
 import { useAuthRole } from '@/lib/hooks/useAuthRole';
 import { Card, Button } from '@/components/ui/Button';
 import { Plus, Pencil, Trash2, X, Loader2 } from 'lucide-react';
-import { MarketOpen, Observer, ObserverIndice, ObserverMercado, ObserverTemporalidad } from '@botrade/shared';
+import {
+  INDICE_LABELS,
+  MARKET_OPEN_LABELS,
+  MarketOpen,
+  Observer,
+  ObserverIndice,
+  ObserverMercado,
+  ObserverTemporalidad,
+} from '@botrade/shared';
 
 type Mode = { kind: 'closed' } | { kind: 'create' } | { kind: 'edit'; observer: Observer };
 
-const INDICE_OPTIONS: { value: ObserverIndice; label: string }[] = [
-  { value: 'inbalance', label: 'Inbalance' },
-  { value: 'choch', label: 'CHoCH' },
-  { value: 'barrido', label: 'Barrido' },
-];
+const INDICE_OPTIONS: { value: ObserverIndice; label: string }[] = (
+  Object.entries(INDICE_LABELS) as [ObserverIndice, string][]
+).map(([value, label]) => ({ value, label }));
 
 const TEMPORALIDAD_OPTIONS: { value: ObserverTemporalidad; label: string }[] = [
   { value: '1m', label: '1 minuto' },
@@ -41,11 +47,9 @@ const MERCADO_OPTIONS: { value: ObserverMercado; label: string }[] = [
   { value: 'sp500', label: 'S&P 500' },
 ];
 
-const MARKET_OPEN_OPTIONS: { value: MarketOpen; label: string }[] = [
-  { value: 'sidney', label: 'Sídney' },
-  { value: 'tokio', label: 'Tokio' },
-  { value: 'nueva_york', label: 'Nueva York' },
-];
+const MARKET_OPEN_OPTIONS: { value: MarketOpen; label: string }[] = (
+  Object.entries(MARKET_OPEN_LABELS) as [MarketOpen, string][]
+).map(([value, label]) => ({ value, label }));
 
 function getErrorMessage(err: unknown): string {
   const code = (err as { code?: string }).code;
@@ -123,22 +127,25 @@ export default function AdminObserversPage() {
     setFormError(null);
   };
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSubmit = async (payload: {
+    indice: ObserverIndice;
+    temporalidad: ObserverTemporalidad;
+    mercado: ObserverMercado;
+    marketOpen: MarketOpen | null;
+    isActive: boolean;
+  }) => {
     if (mode.kind === 'closed') return;
     setSubmitting(true);
     setFormError(null);
     try {
-      const formData = new FormData(e.currentTarget);
-      const indice = formData.get('indice') as ObserverIndice;
-      const temporalidad = formData.get('temporalidad') as ObserverTemporalidad;
-      const mercado = formData.get('mercado') as ObserverMercado;
-      const marketOpenValue = formData.get('marketOpen') as MarketOpen | '';
-      const marketOpen = marketOpenValue ? (marketOpenValue as MarketOpen) : null;
-      const isActive = formData.get('isActive') === 'on';
+      const { indice, temporalidad, mercado, marketOpen, isActive } = payload;
 
       if (!indice || !temporalidad || !mercado) {
-        setFormError('Todos los campos son obligatorios');
+        setFormError('Indicador, temporalidad y mercado son obligatorios');
+        return;
+      }
+      if (indice === 'apertura_mercado' && !marketOpen) {
+        setFormError('Elegí qué apertura de mercado querés observar');
         return;
       }
 
@@ -159,7 +166,6 @@ export default function AdminObserversPage() {
           temporalidad,
           mercado,
           marketOpen,
-          isActive,
           updatedAt: serverTimestamp(),
         });
       }
@@ -234,66 +240,77 @@ export default function AdminObserversPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
-                  <th className="py-3 pr-4 font-medium">Índice</th>
+                  <th className="py-3 pr-4 font-medium">Indicador</th>
                   <th className="py-3 pr-4 font-medium">Temporalidad</th>
                   <th className="py-3 pr-4 font-medium">Mercado</th>
-                  <th className="py-3 pr-4 font-medium">Apertura</th>
                   <th className="py-3 pr-4 font-medium">Estado</th>
                   <th className="py-3 pr-4 font-medium">Actualizado</th>
                   <th className="py-3 text-right font-medium">Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {observers.map((o) => (
-                  <tr key={o.id} className="border-b border-border last:border-b-0 align-top">
-                    <td className="py-3 pr-4 text-muted-foreground">
-                      {INDICE_OPTIONS.find((opt) => opt.value === o.indice)?.label ?? o.indice}
-                    </td>
-                    <td className="py-3 pr-4 text-muted-foreground">
-                      {TEMPORALIDAD_OPTIONS.find((opt) => opt.value === o.temporalidad)?.label ?? o.temporalidad}
-                    </td>
-                    <td className="py-3 pr-4 text-muted-foreground">
-                      {MERCADO_OPTIONS.find((opt) => opt.value === o.mercado)?.label ?? o.mercado}
-                    </td>
-                    <td className="py-3 pr-4 text-muted-foreground">
-                      {o.marketOpen ? (MARKET_OPEN_OPTIONS.find((opt) => opt.value === o.marketOpen)?.label ?? o.marketOpen) : '-'}
-                    </td>
-                    <td className="py-3 pr-4">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          o.isActive
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-red-100 text-red-700'
-                        }`}
-                      >
-                        {o.isActive ? 'Activo' : 'Inactivo'}
-                      </span>
-                    </td>
-                    <td className="py-3 pr-4 text-muted-foreground">
-                      {formatDate(o.updatedAt)}
-                    </td>
-                    <td className="py-3 text-right">
-                      <div className="flex justify-end gap-1">
-                        <button
-                          onClick={() => openEdit(o)}
-                          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-secondary hover:bg-muted"
-                          title="Editar"
+                {observers.map((o) => {
+                  const indiceLabel =
+                    INDICE_OPTIONS.find((opt) => opt.value === o.indice)?.label ?? o.indice;
+                  const marketOpenLabel = o.marketOpen
+                    ? MARKET_OPEN_OPTIONS.find((opt) => opt.value === o.marketOpen)?.label ??
+                      o.marketOpen
+                    : null;
+                  return (
+                    <tr key={o.id} className="border-b border-border last:border-b-0 align-top">
+                      <td className="py-3 pr-4 text-muted-foreground">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span>{indiceLabel}</span>
+                          {marketOpenLabel && (
+                            <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                              {marketOpenLabel}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 pr-4 text-muted-foreground">
+                        {TEMPORALIDAD_OPTIONS.find((opt) => opt.value === o.temporalidad)?.label ?? o.temporalidad}
+                      </td>
+                      <td className="py-3 pr-4 text-muted-foreground">
+                        {MERCADO_OPTIONS.find((opt) => opt.value === o.mercado)?.label ?? o.mercado}
+                      </td>
+                      <td className="py-3 pr-4">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                            o.isActive
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}
                         >
-                          <Pencil className="h-3.5 w-3.5" />
-                          Editar
-                        </button>
-                        <button
-                          onClick={() => handleDelete(o)}
-                          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-red-600 hover:bg-red-50"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Eliminar
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          {o.isActive ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </td>
+                      <td className="py-3 pr-4 text-muted-foreground">
+                        {formatDate(o.updatedAt)}
+                      </td>
+                      <td className="py-3 text-right">
+                        <div className="flex justify-end gap-1">
+                          <button
+                            onClick={() => openEdit(o)}
+                            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-secondary hover:bg-muted"
+                            title="Editar"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => handleDelete(o)}
+                            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Eliminar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -322,16 +339,45 @@ function ObserverFormModal({
 }: {
   mode: Exclude<Mode, { kind: 'closed' }>;
   onClose: () => void;
-  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (payload: {
+    indice: ObserverIndice;
+    temporalidad: ObserverTemporalidad;
+    mercado: ObserverMercado;
+    marketOpen: MarketOpen | null;
+    isActive: boolean;
+  }) => void;
   submitting: boolean;
   formError: string | null;
 }) {
   const isEdit = mode.kind === 'edit';
-  const initialIndice = isEdit ? mode.observer.indice : 'inbalance';
-  const initialTemporalidad = isEdit ? mode.observer.temporalidad : '1m';
-  const initialMercado = isEdit ? mode.observer.mercado : 'nasdaq';
-  const initialMarketOpen = isEdit ? (mode.observer.marketOpen ?? '') : '';
-  const initialIsActive = isEdit ? mode.observer.isActive : true;
+  const observer = isEdit ? mode.observer : null;
+
+  const [indice, setIndice] = useState<ObserverIndice>(
+    observer?.indice ?? 'inbalance'
+  );
+  const [temporalidad, setTemporalidad] = useState<ObserverTemporalidad>(
+    observer?.temporalidad ?? '1m'
+  );
+  const [mercado, setMercado] = useState<ObserverMercado>(
+    observer?.mercado ?? 'nasdaq'
+  );
+  const [marketOpen, setMarketOpen] = useState<MarketOpen | ''>(
+    observer?.marketOpen ?? ''
+  );
+  const [isActive, setIsActive] = useState<boolean>(observer?.isActive ?? true);
+
+  const showMarketOpenSelector = indice === 'apertura_mercado';
+
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    onSubmit({
+      indice,
+      temporalidad,
+      mercado,
+      marketOpen: showMarketOpenSelector && marketOpen ? marketOpen : null,
+      isActive,
+    });
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -341,6 +387,7 @@ function ObserverFormModal({
             {isEdit ? 'Editar observador' : 'Nuevo observador'}
           </h3>
           <button
+            type="button"
             onClick={onClose}
             className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-secondary"
             aria-label="Cerrar"
@@ -348,7 +395,7 @@ function ObserverFormModal({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <form onSubmit={onSubmit} className="space-y-4 px-5 py-4">
+        <form onSubmit={handleSubmit} className="space-y-4 px-5 py-4">
           {formError && (
             <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {formError}
@@ -358,10 +405,9 @@ function ObserverFormModal({
           <div>
             <label className="mb-1 block text-sm font-medium text-secondary">Índice</label>
             <select
-              name="indice"
-              defaultValue={initialIndice}
-              required
-              className="w-full rounded-md border border-border px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              value={indice}
+              onChange={(e) => setIndice(e.target.value as ObserverIndice)}
+              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             >
               {INDICE_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -371,29 +417,35 @@ function ObserverFormModal({
             </select>
           </div>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-secondary">Temporalidad</label>
-            <select
-              name="temporalidad"
-              defaultValue={initialTemporalidad}
-              required
-              className="w-full rounded-md border border-border px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-            >
-              {TEMPORALIDAD_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
+          {showMarketOpenSelector && (
+            <div className="rounded-md border border-border bg-muted/30 p-3">
+              <label className="mb-1 block text-sm font-medium text-secondary">
+                ¿Qué apertura de mercado?
+              </label>
+              <select
+                value={marketOpen}
+                onChange={(e) => setMarketOpen(e.target.value as MarketOpen | '')}
+                required
+                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="" disabled>
+                  Seleccionar...
                 </option>
-              ))}
-            </select>
-          </div>
+                {MARKET_OPEN_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="mb-1 block text-sm font-medium text-secondary">Mercado</label>
             <select
-              name="mercado"
-              defaultValue={initialMercado}
-              required
-              className="w-full rounded-md border border-border px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              value={mercado}
+              onChange={(e) => setMercado(e.target.value as ObserverMercado)}
+              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             >
               {MERCADO_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -404,14 +456,13 @@ function ObserverFormModal({
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-secondary">Indicador apertura de mercado</label>
+            <label className="mb-1 block text-sm font-medium text-secondary">Temporalidad</label>
             <select
-              name="marketOpen"
-              defaultValue={initialMarketOpen}
-              className="w-full rounded-md border border-border px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              value={temporalidad}
+              onChange={(e) => setTemporalidad(e.target.value as ObserverTemporalidad)}
+              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             >
-              <option value="">Ninguno</option>
-              {MARKET_OPEN_OPTIONS.map((opt) => (
+              {TEMPORALIDAD_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
@@ -422,8 +473,8 @@ function ObserverFormModal({
           <label className="flex items-center gap-2 text-sm text-secondary">
             <input
               type="checkbox"
-              name="isActive"
-              defaultChecked={initialIsActive}
+              checked={isActive}
+              onChange={(e) => setIsActive(e.target.checked)}
               className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
             />
             Observador activo

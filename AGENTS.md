@@ -122,11 +122,19 @@ pnpm emulators        # Inicia emuladores de auth, firestore y functions
 | `trades/{id}` | Operaciones ejecutadas |
 | `logs/{id}` | Logs del sistema y bots |
 | `adminConfig/{doc}` | Configuración global para superadmin |
+| `adminConfig/apiKeys` | API keys de proveedores externos (ej. `massive` para velas OHLC) |
 
 ### Seguridad
 - Las reglas de Firestore (`firestore.rules`) permiten lectura/escritura solo según el rol y propiedad.
 - Las credenciales de exchanges y datos sensibles se escriben **solo desde Firebase Functions**.
 - Nunca se exponen secrets en el frontend.
+
+### Proveedor de datos de mercado
+- El menú **Gráfica** del dashboard consume velas OHLC del proveedor **Massive** (rebranding de Polygon.io).
+- API key guardada en `adminConfig/apiKeys.massive` (configurable desde `/admin/settings`).
+- Endpoints consumidos: `/v2/aggs/ticker/{symbol}/range/{mult}/{timespan}/{from}/{to}`.
+- Símbolos actuales: `I:NDX` (NASDAQ 100), `I:SPX` (S&P 500).
+- Plan free (Indices Basic): 5 calls/min, 1+ año histórico, intraday con delay.
 
 ---
 

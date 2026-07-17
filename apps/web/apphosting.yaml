@@ -41,3 +41,8 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_FUNCTIONS_URL
+    value: https://us-central1-botrade-d0517.cloudfunctions.net
+    availability:
+      - BUILD
+      - RUNTIME

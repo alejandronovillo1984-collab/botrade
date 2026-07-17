@@ -15,6 +15,7 @@ import {
   Shield,
   Sparkles,
   Eye,
+  LineChart,
 } from 'lucide-react';
 import { ROLES } from '@botrade/shared';
 
@@ -22,6 +23,7 @@ const userNavItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/bots', label: 'Bots', icon: Bot },
   { href: '/exchanges', label: 'Exchanges', icon: Building2 },
+  { href: '/chart', label: 'Gráfica', icon: LineChart },
 ];
 
 const adminNavItems = [
