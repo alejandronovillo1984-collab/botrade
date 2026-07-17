@@ -7,7 +7,7 @@ import {
   type ChartTimeframe,
   type Observer,
 } from '@botrade/shared';
-import { isOpeningCandle } from '@botrade/shared';
+import { isFirstIntradayCandleOfDay } from '@botrade/shared';
 
 const INTRADAY_TIMEFRAMES: ChartTimeframe[] = [
   CHART_TIMEFRAMES.M1,
@@ -47,18 +47,18 @@ export function buildOpeningMarkers(
 
   const markers: SeriesMarker<UTCTimestamp>[] = [];
 
-  for (const observer of relevant) {
-    const text = markerLabel(observer);
-    for (const candle of candles) {
-      if (isOpeningCandle(candle, observer.marketOpen!)) {
-        markers.push({
-          time: candle.time as UTCTimestamp,
-          position: 'aboveBar',
-          color: '#2563eb',
-          shape: 'circle',
-          text,
-        });
-      }
+  for (let i = 0; i < candles.length; i++) {
+    const candle = candles[i];
+    const prev = i > 0 ? candles[i - 1] : null;
+    if (!isFirstIntradayCandleOfDay(candle, prev)) continue;
+    for (const observer of relevant) {
+      markers.push({
+        time: candle.time as UTCTimestamp,
+        position: 'aboveBar',
+        color: '#2563eb',
+        shape: 'circle',
+        text: markerLabel(observer),
+      });
     }
   }
 

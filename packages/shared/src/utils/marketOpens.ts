@@ -12,6 +12,8 @@ const MARKET_OPEN_CONFIG: Record<MarketOpen, MarketOpenConfig> = {
   tokio: { timezone: 'Asia/Tokyo', hour: 9, minute: 0 },
 };
 
+const NYSE_TIMEZONE = 'America/New_York';
+
 interface LocalDateTime {
   year: number;
   month: number;
@@ -43,6 +45,13 @@ function getLocalDateTime(utcMs: number, timeZone: string): LocalDateTime {
     minute: parseInt(lookup('minute'), 10),
     second: parseInt(lookup('second'), 10),
   };
+}
+
+function getLocalDateKey(utcMs: number, timeZone: string): string {
+  const local = getLocalDateTime(utcMs, timeZone);
+  const mm = String(local.month).padStart(2, '0');
+  const dd = String(local.day).padStart(2, '0');
+  return `${local.year}-${mm}-${dd}`;
 }
 
 function timeZoneOffsetMinutes(utcMs: number, timeZone: string): number {
@@ -77,3 +86,14 @@ export function isOpeningCandle(candle: Candle, marketOpen: MarketOpen): boolean
   const openMs = getMarketOpenUtcMs(candle.time * 1000, marketOpen);
   return Math.floor(openMs / 1000) === candle.time;
 }
+
+export function isFirstIntradayCandleOfDay(
+  candle: Candle,
+  prevCandle: Candle | null
+): boolean {
+  if (!prevCandle) return true;
+  const currentKey = getLocalDateKey(candle.time * 1000, NYSE_TIMEZONE);
+  const prevKey = getLocalDateKey(prevCandle.time * 1000, NYSE_TIMEZONE);
+  return currentKey !== prevKey;
+}
+
