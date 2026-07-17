@@ -20,11 +20,10 @@ function isIntraday(timeframe: ChartTimeframe): boolean {
 }
 
 function markerLabel(observer: Observer): string {
-  const indiceLabel = INDICE_LABELS[observer.indice];
   if (observer.indice === 'apertura_mercado' && observer.marketOpen) {
-    return `${indiceLabel} ${MARKET_OPEN_LABELS[observer.marketOpen]}`;
+    return MARKET_OPEN_LABELS[observer.marketOpen];
   }
-  return indiceLabel;
+  return INDICE_LABELS[observer.indice];
 }
 
 export function buildOpeningMarkers(
@@ -55,8 +54,9 @@ export function buildOpeningMarkers(
       markers.push({
         time: candle.time as UTCTimestamp,
         position: 'aboveBar',
-        color: '#2563eb',
+        color: '#64748b',
         shape: 'circle',
+        size: 0.7,
         text: markerLabel(observer),
       });
     }
