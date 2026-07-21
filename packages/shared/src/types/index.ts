@@ -6,3 +6,5 @@ export * from './signal';
 export * from './strategy';
 export * from './observer';
 export * from './chart';
+export * from './aiModel';
+export * from './aiObserverResult';

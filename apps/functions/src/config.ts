@@ -20,6 +20,9 @@ export const COLLECTIONS = {
   OBSERVERS: 'observers',
   LOGS: 'logs',
   ADMIN_CONFIG: 'adminConfig',
+  AI_MODELS: 'aiModels',
+  AI_OBSERVER_RESULTS: 'aiObserverResults',
+  CANDLES: 'candles',
 } as const;
 
 export const DEFAULT_REGION = 'us-central1';

@@ -11,7 +11,7 @@ import { isFirstIntradayCandleOfDay } from '@botrade/shared';
 
 const INTRADAY_TIMEFRAMES: ChartTimeframe[] = [
   CHART_TIMEFRAMES.M1,
-  CHART_TIMEFRAMES.M15,
+  CHART_TIMEFRAMES.M5,
   CHART_TIMEFRAMES.H1,
 ];
 
@@ -26,7 +26,7 @@ function markerLabel(observer: Observer): string {
   return INDICE_LABELS[observer.indice];
 }
 
-export function buildOpeningMarkers(
+function buildOpeningMarkers(
   candles: Candle[],
   observers: Observer[],
   chartMarket: Observer['mercado'],
@@ -59,6 +59,25 @@ export function buildOpeningMarkers(
         size: 0.7,
         text: markerLabel(observer),
       });
+    }
+  }
+
+  return markers;
+}
+
+export function buildObserverMarkers(
+  candles: Candle[],
+  observers: Observer[],
+  chartMarket: Observer['mercado'],
+  timeframe: ChartTimeframe
+): SeriesMarker<UTCTimestamp>[] {
+  const relevant = observers.filter((o) => o.isActive && o.mercado === chartMarket);
+  if (relevant.length === 0) return [];
+
+  const markers: SeriesMarker<UTCTimestamp>[] = [];
+  for (const observer of relevant) {
+    if (observer.indice === 'apertura_mercado') {
+      markers.push(...buildOpeningMarkers(candles, [observer], chartMarket, timeframe));
     }
   }
 

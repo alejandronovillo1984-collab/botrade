@@ -7,7 +7,7 @@ export type MarketSymbol = (typeof MARKET_SYMBOLS)[keyof typeof MARKET_SYMBOLS];
 
 export const CHART_TIMEFRAMES = {
   M1: '1m',
-  M15: '15m',
+  M5: '5m',
   H1: '1h',
   D1: '1d',
 } as const;
@@ -27,11 +27,14 @@ export interface CandlesResponse {
   market: MarketSymbol;
   timeframe: ChartTimeframe;
   candles: Candle[];
+  requestPath?: string;
+  from?: string;
+  to?: string;
 }
 
 export const PROVIDER_SYMBOL: Record<MarketSymbol, string> = {
-  nasdaq: 'I:NDX',
-  sp500: 'I:SPX',
+  nasdaq: 'NDX.INDX',
+  sp500: 'GSPC.INDX',
 };
 
 export const MARKET_LABELS: Record<MarketSymbol, string> = {
@@ -41,7 +44,7 @@ export const MARKET_LABELS: Record<MarketSymbol, string> = {
 
 export const TIMEFRAME_LABELS: Record<ChartTimeframe, string> = {
   '1m': '1 min',
-  '15m': '15 min',
+  '5m': '5 min',
   '1h': '1 hora',
   '1d': '1 día',
 };
@@ -50,14 +53,15 @@ export interface TimeframeSpec {
   multiplier: number;
   timespan: 'minute' | 'hour' | 'day';
   lookbackDays: number;
+  chartWindow: number;
 }
 
 export const TIMEFRAME_SPEC: Record<ChartTimeframe, TimeframeSpec> = {
-  '1m': { multiplier: 1, timespan: 'minute', lookbackDays: 5 },
-  '15m': { multiplier: 15, timespan: 'minute', lookbackDays: 30 },
-  '1h': { multiplier: 1, timespan: 'hour', lookbackDays: 30 },
-  '1d': { multiplier: 1, timespan: 'day', lookbackDays: 365 },
+  '1m': { multiplier: 1, timespan: 'minute', lookbackDays: 120, chartWindow: 2000 },
+  '5m': { multiplier: 5, timespan: 'minute', lookbackDays: 600, chartWindow: 1500 },
+  '1h': { multiplier: 1, timespan: 'hour', lookbackDays: 730, chartWindow: 500 },
+  '1d': { multiplier: 1, timespan: 'day', lookbackDays: 365, chartWindow: 500 },
 };
 
-export const API_KEY_PROVIDERS = ['massive'] as const;
+export const API_KEY_PROVIDERS = ['eodhd'] as const;
 export type ApiKeyProvider = (typeof API_KEY_PROVIDERS)[number];

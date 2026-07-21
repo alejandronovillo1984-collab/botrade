@@ -9,7 +9,7 @@ import {
   type ApiKeyProvider,
 } from '@botrade/shared';
 
-const LEGACY_FIELDS_TO_CLEAN = ['fmp'];
+const LEGACY_FIELDS_TO_CLEAN = ['fmp', 'massive'];
 
 const setSchema = z.object({
   provider: z.enum(API_KEY_PROVIDERS),

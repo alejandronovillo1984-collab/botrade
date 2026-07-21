@@ -19,17 +19,21 @@ import {
   MARKET_SYMBOLS,
   TIMEFRAME_LABELS,
   type Candle,
-  type CandlesResponse,
   type ChartTimeframe,
   type MarketSymbol,
   type Observer,
 } from '@botrade/shared';
-import { buildOpeningMarkers } from '@/lib/chart/markers';
+import { buildObserverMarkers } from '@/lib/chart/markers';
+import {
+  CHART_LIMIT_OPTIONS,
+  DEFAULT_CHART_LIMIT,
+  useChartCandles,
+} from '@/lib/hooks/useChartCandles';
 
 const TIMEFRAME_OPTIONS: ChartTimeframe[] = [
   CHART_TIMEFRAMES.D1,
   CHART_TIMEFRAMES.H1,
-  CHART_TIMEFRAMES.M15,
+  CHART_TIMEFRAMES.M5,
   CHART_TIMEFRAMES.M1,
 ];
 
@@ -39,6 +43,7 @@ const STORAGE_KEYS = {
   market: 'botrade:chart:market',
   timeframe: 'botrade:chart:timeframe',
   background: 'botrade:chart:background',
+  limit: 'botrade:chart:limit',
 } as const;
 
 type ChartBackground = 'light' | 'dark';
@@ -109,6 +114,43 @@ function useLocalStorageState<T extends string>(
   return [value, setValue];
 }
 
+function useLocalStorageNumberState(
+  key: string,
+  fallback: number,
+  allowed: readonly number[]
+): [number, (next: number) => void] {
+  const [value, setValue] = useState<number>(fallback);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (raw !== null) {
+        const parsed = Number(raw);
+        if (Number.isFinite(parsed) && allowed.includes(parsed)) {
+          setValue(parsed);
+        }
+      }
+    } catch {
+      // ignore
+    } finally {
+      setHydrated(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      window.localStorage.setItem(key, String(value));
+    } catch {
+      // ignore
+    }
+  }, [key, value, hydrated]);
+
+  return [value, setValue];
+}
+
 function getFunctionsBaseUrl(): string {
   const override = process.env.NEXT_PUBLIC_FIREBASE_FUNCTIONS_URL;
   if (override && override.length > 0) return override.replace(/\/$/, '');
@@ -125,12 +167,31 @@ const isMarketSymbol = (v: string): v is MarketSymbol =>
 
 const isChartTimeframe = (v: string): v is ChartTimeframe =>
   v === CHART_TIMEFRAMES.M1 ||
-  v === CHART_TIMEFRAMES.M15 ||
+  v === CHART_TIMEFRAMES.M5 ||
   v === CHART_TIMEFRAMES.H1 ||
   v === CHART_TIMEFRAMES.D1;
 
 const isChartBackground = (v: string): v is ChartBackground =>
   v === 'light' || v === 'dark';
+
+const STALE_DATA_THRESHOLD_SEC = 60 * 60;
+
+function formatAge(seconds: number): string {
+  if (seconds < 60) return `hace ${seconds}s`;
+  if (seconds < 3600) return `hace ${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `hace ${Math.floor(seconds / 3600)}h`;
+  return `hace ${Math.floor(seconds / 86400)}d`;
+}
+
+function formatTimeShort(unixSec: number): string {
+  const d = new Date(unixSec * 1000);
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mi = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi} UTC`;
+}
 
 interface ActiveObserversResponse {
   observers: Observer[];
@@ -159,15 +220,34 @@ export function MarketChart() {
     'light',
     isChartBackground
   );
+  const [limit, setLimit] = useLocalStorageNumberState(
+    STORAGE_KEYS.limit,
+    DEFAULT_CHART_LIMIT,
+    CHART_LIMIT_OPTIONS
+  );
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorDetail, setErrorDetail] = useState<string | null>(null);
   const [errorStatus, setErrorStatus] = useState<number | null>(null);
   const [showDetail, setShowDetail] = useState(false);
+  const [dataRange, setDataRange] = useState<{ first: number; last: number } | null>(null);
 
   const [refreshTick, setRefreshTick] = useState(0);
   const [observers, setObservers] = useState<Observer[]>([]);
+
+  const {
+    candles: chartCandles,
+    loading: chartLoading,
+    error: chartError,
+    source: chartSource,
+    pairId: chartPairId,
+  } = useChartCandles({
+    market,
+    timeframe,
+    refreshTick,
+    limit,
+  });
 
   const theme = BG_THEMES[background];
 
@@ -262,7 +342,7 @@ export function MarketChart() {
   useEffect(() => {
     const markers = markersRef.current;
     if (!markers) return;
-    const built = buildOpeningMarkers(candlesRef.current, observers, market, timeframe);
+    const built = buildObserverMarkers(candlesRef.current, observers, market, timeframe);
     markers.setMarkers(built);
   }, [observers, market, timeframe]);
 
@@ -287,64 +367,44 @@ export function MarketChart() {
     const series = seriesRef.current;
     if (!series) return;
 
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    setErrorDetail(null);
+    if (chartLoading) {
+      setLoading(true);
+    } else {
+      setLoading(false);
+    }
+    setError(chartError);
+    setErrorDetail(chartError ?? null);
     setErrorStatus(null);
     setShowDetail(false);
-    series.setData([]);
-    candlesRef.current = [];
-    markersRef.current?.setMarkers([]);
 
-    const params = new URLSearchParams({ market, timeframe });
-    const base = getFunctionsBaseUrl();
-    const url = `${base}/marketCandles?${params.toString()}`;
-
-    fetch(url)
-      .then(async (res) => {
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          const statusMessage =
-            typeof body?.error === 'string' ? body.error : `Error ${res.status}`;
-          const detail = typeof body?.detail === 'string' ? body.detail : null;
-          const fmpPath = typeof body?.fmpPath === 'string' ? body.fmpPath : null;
-          const message = detail ? `${statusMessage} — ${detail}` : statusMessage;
-          const debug = { url, status: res.status, body, fmpPath };
-          console.error('[MarketChart] candles fetch failed', debug);
-          throw new Error(message);
-        }
-        return (await res.json()) as CandlesResponse;
-      })
-      .then((data) => {
-        if (cancelled) return;
-        const chartData: CandlestickData[] = data.candles.map((c) => ({
-          time: c.time as UTCTimestamp,
-          open: c.open,
-          high: c.high,
-          low: c.low,
-          close: c.close,
-        }));
-        series.setData(chartData);
-        candlesRef.current = data.candles;
-        const built = buildOpeningMarkers(data.candles, observers, market, timeframe);
-        markersRef.current?.setMarkers(built);
+    if (chartCandles.length === 0) {
+      series.setData([]);
+      candlesRef.current = [];
+      markersRef.current?.setMarkers([]);
+      setDataRange(null);
+      if (!chartLoading) {
         chartRef.current?.timeScale().fitContent();
-        setLoading(false);
-      })
-      .catch((err: Error) => {
-        if (cancelled) return;
-        console.error(`[MarketChart] ${market} ${timeframe} →`, err);
-        setError(err.message || 'No se pudieron cargar las velas');
-        setErrorDetail(`URL: ${url}\n\n${err.stack ?? ''}`);
-        setErrorStatus(null);
-        setLoading(false);
-      });
+      }
+      return;
+    }
 
-    return () => {
-      cancelled = true;
-    };
-  }, [market, timeframe, refreshTick]);
+    const chartData: CandlestickData[] = chartCandles.map((c) => ({
+      time: c.time as UTCTimestamp,
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+    }));
+    series.setData(chartData);
+    candlesRef.current = chartCandles;
+    setDataRange({
+      first: chartCandles[0].time,
+      last: chartCandles[chartCandles.length - 1].time,
+    });
+    const built = buildObserverMarkers(chartCandles, observers, market, timeframe);
+    markersRef.current?.setMarkers(built);
+    chartRef.current?.timeScale().fitContent();
+  }, [chartCandles, chartLoading, chartError, observers, market, timeframe, refreshTick]);
 
   const handleRefresh = useCallback(() => {
     setRefreshTick((n) => n + 1);
@@ -385,6 +445,65 @@ export function MarketChart() {
             </option>
           ))}
         </select>
+        <span className="opacity-50">·</span>
+        <label
+          className="flex items-center gap-1 text-[10px] uppercase tracking-wide"
+          style={{ color: theme.toolbarText }}
+          title="Cantidad de velas a mostrar"
+        >
+          <span className="opacity-70">Velas</span>
+          <select
+            value={limit}
+            onChange={(e) => setLimit(Number(e.target.value))}
+            className="rounded border border-transparent bg-transparent px-2 py-1 text-xs hover:border-border hover:bg-white hover:text-secondary focus:border-primary focus:bg-white focus:text-secondary focus:outline-none"
+            style={{ color: theme.toolbarText }}
+          >
+            {CHART_LIMIT_OPTIONS.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span
+          title={`candles/${chartPairId}/candles`}
+          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+            chartSource === 'firestore'
+              ? 'bg-green-100 text-green-700'
+              : chartSource === 'http'
+              ? 'bg-amber-100 text-amber-700'
+              : 'bg-muted text-muted-foreground'
+          }`}
+        >
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${
+              chartSource === 'firestore'
+                ? 'bg-green-500'
+                : chartSource === 'http'
+                ? 'bg-amber-500'
+                : 'bg-muted-foreground/40'
+            }`}
+          />
+          {chartSource === 'firestore'
+            ? `Firestore · ${chartCandles.length}`
+            : chartSource === 'http'
+            ? `HTTP · ${chartCandles.length}`
+            : chartLoading
+            ? 'Cargando...'
+            : '—'}
+        </span>
+        {dataRange && (
+          <span
+            title={`Última vela: ${formatTimeShort(dataRange.last)}`}
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+              Math.floor(Date.now() / 1000) - dataRange.last > STALE_DATA_THRESHOLD_SEC
+                ? 'bg-red-100 text-red-700'
+                : 'bg-muted text-muted-foreground'
+            }`}
+          >
+            {formatAge(Math.floor(Date.now() / 1000) - dataRange.last)}
+          </span>
+        )}
         <button
           type="button"
           onClick={toggleBackground}

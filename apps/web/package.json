@@ -5,7 +5,7 @@
   "scripts": {
     "predev": "node -e \"require('fs').rmSync('.next', { recursive: true, force: true })\"",
     "dev": "next dev",
-    "prebuild": "pnpm --filter @botrade/shared build",
+    "prebuild": "node -e \"require('fs').rmSync('.next', { recursive: true, force: true })\" && pnpm --filter @botrade/shared build",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

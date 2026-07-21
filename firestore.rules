@@ -68,5 +68,23 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create, update, delete: if isSuperAdmin();
     }
+
+    // Modelos de IA: lectura y escritura solo superadmin
+    match /aiModels/{modelId} {
+      allow read, write: if isSuperAdmin();
+    }
+
+    // Resultados de consultas IA a observers: lectura autenticada, escritura solo Functions
+    match /aiObserverResults/{resultId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    // Velas OHLC sincronizadas desde EODHD: compartidas por (symbol, timeframe)
+    // Estructura: candles/{symbol}_{timeframe}/candles/{candleTime}
+    match /candles/{pairId}/candles/{candleId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
   }
 }

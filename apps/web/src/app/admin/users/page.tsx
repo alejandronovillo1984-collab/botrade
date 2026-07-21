@@ -18,7 +18,7 @@ import { db } from '@/lib/firebase';
 import { useAuthRole } from '@/lib/hooks/useAuthRole';
 import { ROLES, Role } from '@botrade/shared';
 import { Card, Button } from '@/components/ui/Button';
-import { Plus, Pencil, Trash2, X, Loader2, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Loader2, Search, Shield, ShieldOff } from 'lucide-react';
 
 interface AdminUser {
   uid: string;
@@ -57,6 +57,7 @@ export default function AdminUsersPage() {
   const [mode, setMode] = useState<Mode>({ kind: 'closed' });
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [togglingUid, setTogglingUid] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isSuperAdmin) {
@@ -208,6 +209,29 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleToggleRole = async (user: AdminUser) => {
+    if (user.uid === currentUser?.uid) return;
+    const nextRole: Role =
+      user.role === ROLES.SUPERADMIN ? ROLES.USER : ROLES.SUPERADMIN;
+    const actionLabel =
+      nextRole === ROLES.SUPERADMIN ? 'promover a superadmin' : 'degradar a user';
+    const confirmed = window.confirm(
+      `¿Confirmás ${actionLabel} a ${user.email ?? user.uid}?\n\n` +
+        `El usuario deberá cerrar sesión y volver a entrar para que el cambio surta efecto.`
+    );
+    if (!confirmed) return;
+    setTogglingUid(user.uid);
+    setError(null);
+    try {
+      const updateUser = httpsCallable(functions, 'updateUser');
+      await updateUser({ uid: user.uid, role: nextRole });
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setTogglingUid(null);
+    }
+  };
+
   if (!isSuperAdmin) {
     return (
       <div className="p-8">
@@ -314,6 +338,43 @@ export default function AdminUsersPage() {
                       </td>
                       <td className="py-3 text-right">
                         <div className="flex justify-end gap-1">
+                          {u.role === ROLES.SUPERADMIN ? (
+                            <button
+                              onClick={() => handleToggleRole(u)}
+                              disabled={isSelf || togglingUid === u.uid}
+                              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-40"
+                              title={
+                                isSelf
+                                  ? 'No podés cambiar tu propio rol desde acá'
+                                  : 'Quitar superadmin'
+                              }
+                            >
+                              {togglingUid === u.uid ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <ShieldOff className="h-3.5 w-3.5" />
+                              )}
+                              Quitar SA
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleToggleRole(u)}
+                              disabled={isSelf || togglingUid === u.uid}
+                              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-primary hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-40"
+                              title={
+                                isSelf
+                                  ? 'No podés cambiar tu propio rol desde acá'
+                                  : 'Hacer superadmin'
+                              }
+                            >
+                              {togglingUid === u.uid ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Shield className="h-3.5 w-3.5" />
+                              )}
+                              Hacer SA
+                            </button>
+                          )}
                           <button
                             onClick={() => openEdit(u)}
                             className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-secondary hover:bg-muted"

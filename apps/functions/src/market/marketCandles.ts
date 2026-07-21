@@ -3,14 +3,13 @@ import { logger } from 'firebase-functions/v2';
 import { z } from 'zod';
 import {
   CHART_TIMEFRAMES,
-  PROVIDER_SYMBOL,
   MARKET_SYMBOLS,
-  TIMEFRAME_SPEC,
   type Candle,
   type ChartTimeframe,
   type MarketSymbol,
 } from '@botrade/shared';
-import { COLLECTIONS, DEFAULT_REGION, db } from '../config';
+import { DEFAULT_REGION } from '../config';
+import { EodhdFetchError, fetchCandles } from './eodhdClient';
 
 const querySchema = z.object({
   market: z.enum([
@@ -19,92 +18,14 @@ const querySchema = z.object({
   ]),
   timeframe: z.enum([
     CHART_TIMEFRAMES.M1,
-    CHART_TIMEFRAMES.M15,
+    CHART_TIMEFRAMES.M5,
     CHART_TIMEFRAMES.H1,
     CHART_TIMEFRAMES.D1,
   ]),
+  limit: z
+    .preprocess((v) => (typeof v === 'string' ? Number(v) : v), z.number().int().positive().max(10000))
+    .optional(),
 });
-
-const MASSIVE_BASE_URL = 'https://api.massive.com';
-const CACHE_TTL_MS = 60_000;
-
-interface CacheEntry {
-  expiresAt: number;
-  payload: { market: MarketSymbol; timeframe: ChartTimeframe; candles: Candle[] };
-}
-
-const cache = new Map<string, CacheEntry>();
-
-function getCacheKey(market: MarketSymbol, timeframe: ChartTimeframe): string {
-  return `${market}::${timeframe}`;
-}
-
-function formatDate(date: Date): string {
-  const yyyy = date.getUTCFullYear();
-  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(date.getUTCDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function dateRangeFor(timeframe: ChartTimeframe): { from: string; to: string } {
-  const { lookbackDays } = TIMEFRAME_SPEC[timeframe];
-  const to = new Date();
-  const from = new Date(to.getTime() - lookbackDays * 24 * 60 * 60 * 1000);
-  return { from: formatDate(from), to: formatDate(to) };
-}
-
-interface MassiveBar {
-  o: number;
-  h: number;
-  l: number;
-  c: number;
-  t: number;
-  v?: number;
-}
-
-interface MassiveResponse {
-  ticker?: string;
-  status?: string;
-  resultsCount?: number;
-  results?: MassiveBar[];
-  error?: string;
-  message?: string;
-}
-
-function normalizeBars(raw: MassiveResponse | null | undefined): Candle[] {
-  if (!raw || !Array.isArray(raw.results)) return [];
-
-  const candles: Candle[] = [];
-  for (const bar of raw.results) {
-    const open = Number(bar.o);
-    const high = Number(bar.h);
-    const low = Number(bar.l);
-    const close = Number(bar.c);
-    const timeMs = Number(bar.t);
-    if (![open, high, low, close, timeMs].every((n) => Number.isFinite(n))) continue;
-
-    const timeSec = Math.floor(timeMs / 1000);
-    const volume =
-      typeof bar.v === 'number' && Number.isFinite(bar.v) ? bar.v : undefined;
-
-    const candle: Candle = volume !== undefined
-      ? { time: timeSec, open, high, low, close, volume }
-      : { time: timeSec, open, high, low, close };
-
-    candles.push(candle);
-  }
-
-  candles.sort((a, b) => a.time - b.time);
-  return candles;
-}
-
-async function getMassiveApiKey(): Promise<string | null> {
-  const snap = await db.collection(COLLECTIONS.ADMIN_CONFIG).doc('apiKeys').get();
-  if (!snap.exists) return null;
-  const data = snap.data() as { massive?: unknown } | undefined;
-  const key = data?.massive;
-  return typeof key === 'string' && key.length > 0 ? key : null;
-}
 
 function setCorsHeaders(response: { set: (name: string, value: string) => void }): void {
   response.set('Access-Control-Allow-Origin', '*');
@@ -134,134 +55,89 @@ export const marketCandles = onRequest(
       return;
     }
 
-    const { market, timeframe } = parsed.data;
-    const cacheKey = getCacheKey(market, timeframe);
-    const cached = cache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) {
-      response.status(200).json(cached.payload);
-      return;
-    }
+    const { market, timeframe, limit } = parsed.data;
 
-    let apiKey: string | null;
+    let result: {
+      symbol: string;
+      candles: Candle[];
+      requestPath: string;
+      from: string;
+      to: string;
+    };
     try {
-      apiKey = await getMassiveApiKey();
+      const fetched = await fetchCandles({ market, timeframe, limit });
+      result = {
+        symbol: fetched.symbol,
+        candles: fetched.candles,
+        requestPath: fetched.requestPath,
+        from: fetched.from,
+        to: fetched.to,
+      };
     } catch (err) {
-      logger.error('Error leyendo la API key de Massive desde adminConfig:', err);
-      response.status(500).json({
-        error: 'No se pudo leer la configuración del proveedor de datos',
-      });
-      return;
-    }
-
-    if (!apiKey) {
-      response.status(503).json({
-        error:
-          'Falta configurar la API key de Massive. Cargala en /admin/settings como superadmin.',
-      });
-      return;
-    }
-
-    const symbol = PROVIDER_SYMBOL[market];
-    const spec = TIMEFRAME_SPEC[timeframe];
-    const { from, to } = dateRangeFor(timeframe);
-
-    const url =
-      `${MASSIVE_BASE_URL}/v2/aggs/ticker/${encodeURIComponent(symbol)}` +
-      `/range/${spec.multiplier}/${spec.timespan}/${from}/${to}` +
-      `?apiKey=${encodeURIComponent(apiKey)}`;
-
-    logger.info(
-      `Massive request: ${market} ${timeframe} → ${url.replace(apiKey, '***')}`
-    );
-
-    let massiveResponse: Response;
-    try {
-      massiveResponse = await fetch(url);
-    } catch (err) {
-      logger.error(`Error de red al consultar Massive (${market} ${timeframe}):`, err);
-      response.status(502).json({ error: 'No se pudo contactar al proveedor de datos' });
-      return;
-    }
-
-    const responseBody = await massiveResponse.text().catch(() => '');
-
-    if (!massiveResponse.ok) {
-      logger.error(
-        `Massive status ${massiveResponse.status} para ${market} ${timeframe}: ${responseBody.slice(0, 1000)}`
-      );
-      let detail = responseBody;
-      try {
-        const parsedBody = JSON.parse(responseBody) as { error?: string; message?: string };
-        if (parsedBody && typeof parsedBody.message === 'string') {
-          detail = parsedBody.message;
-        } else if (parsedBody && typeof parsedBody.error === 'string') {
-          detail = parsedBody.error;
+      if (err instanceof EodhdFetchError) {
+        switch (err.code) {
+          case 'no_api_key':
+            response.status(503).json({ error: err.message });
+            return;
+          case 'network':
+            response.status(502).json({ error: 'No se pudo contactar al proveedor de datos' });
+            return;
+          case 'empty':
+            response.status(404).json({
+              error: 'El proveedor no devolvió velas para esta combinación',
+              detail: err.message,
+              provider: 'eodhd',
+              market,
+              timeframe,
+            });
+            return;
+          case 'plan_upgrade_required':
+            response.status(402).json({
+              error: err.message,
+              code: 'plan_upgrade_required',
+              provider: 'eodhd',
+              market,
+              timeframe,
+            });
+            return;
+          case 'invalid_response':
+            response.status(502).json({ error: err.message });
+            return;
+          case 'unsupported_timeframe':
+            response.status(400).json({ error: err.message });
+            return;
+          case 'provider_error':
+          default:
+            response.status(502).json({
+              error: `El proveedor de datos respondió con error ${err.status ?? 500}`,
+              detail: err.message,
+              provider: 'eodhd',
+              market,
+              timeframe,
+            });
+            return;
         }
-      } catch {
-        // body no era JSON
       }
-      response.status(502).json({
-        error: `El proveedor de datos respondió con error ${massiveResponse.status}`,
-        detail: detail.slice(0, 500),
-        provider: 'massive',
-        market,
-        timeframe,
-      });
+      logger.error(`Error inesperado en marketCandles (${market} ${timeframe}):`, err);
+      response.status(500).json({ error: 'Error inesperado' });
       return;
     }
 
-    let parsedBody: MassiveResponse | null = null;
-    try {
-      parsedBody = JSON.parse(responseBody) as MassiveResponse;
-    } catch (err) {
-      logger.error(
-        `Respuesta inválida de Massive (${market} ${timeframe}): ${responseBody.slice(0, 500)}`
-      );
-      response.status(502).json({ error: 'Respuesta inválida del proveedor de datos' });
-      return;
-    }
-
-    if (parsedBody && typeof parsedBody === 'object' && 'error' in parsedBody) {
-      const message = parsedBody.error || parsedBody.message || 'Error desconocido del proveedor';
-      logger.error(`Massive devolvió error para ${market} ${timeframe}: ${message}`);
-      response.status(502).json({
-        error: 'El proveedor de datos rechazó la consulta',
-        detail: message,
-        provider: 'massive',
-      });
-      return;
-    }
-
-    if (parsedBody?.status === 'ERROR') {
-      const message = parsedBody.message ?? parsedBody.status ?? 'ERROR';
-      logger.error(`Massive status ERROR para ${market} ${timeframe}: ${message}`);
-      response.status(502).json({
-        error: 'El proveedor devolvió estado ERROR',
-        detail: typeof message === 'string' ? message : JSON.stringify(message),
-        provider: 'massive',
-      });
-      return;
-    }
-
-    const candles = normalizeBars(parsedBody);
-
-    if (candles.length === 0) {
-      const count = parsedBody?.results?.length ?? 0;
-      logger.warn(
-        `Massive no devolvió velas para ${market} ${timeframe} (results=${count})`
-      );
-      response.status(404).json({
-        error: 'El proveedor no devolvió velas para esta combinación',
-        detail: `${count} resultados. ¿Tu plan cubre ${symbol} en ${spec.timespan}?`,
-        provider: 'massive',
-        market,
-        timeframe,
-      });
-      return;
-    }
-
-    const payload = { market, timeframe, candles };
-    cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, payload });
+    const payload: {
+      market: MarketSymbol;
+      timeframe: ChartTimeframe;
+      candles: Candle[];
+      requestPath: string;
+      from: string;
+      to: string;
+    } = {
+      market,
+      timeframe,
+      candles: result.candles,
+      requestPath: result.requestPath,
+      from: result.from,
+      to: result.to,
+    };
     response.status(200).json(payload);
   }
 );

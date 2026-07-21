@@ -122,7 +122,10 @@ pnpm emulators        # Inicia emuladores de auth, firestore y functions
 | `trades/{id}` | Operaciones ejecutadas |
 | `logs/{id}` | Logs del sistema y bots |
 | `adminConfig/{doc}` | Configuración global para superadmin |
-| `adminConfig/apiKeys` | API keys de proveedores externos (ej. `massive` para velas OHLC) |
+| `adminConfig/apiKeys` | API keys de proveedores externos (ej. `eodhd` para velas OHLC) |
+| `adminConfig/marketData` | Configuración del proveedor de mercado (`cacheTtlSeconds`) |
+| `adminConfig/aiConfig` | Modelo de IA por defecto (`{ defaultAiModelId: string \| null }`) |
+| `aiModels/{id}` | Modelos de IA configurados para análisis (cada uno con su `apiKey`) |
 
 ### Seguridad
 - Las reglas de Firestore (`firestore.rules`) permiten lectura/escritura solo según el rol y propiedad.
@@ -130,11 +133,16 @@ pnpm emulators        # Inicia emuladores de auth, firestore y functions
 - Nunca se exponen secrets en el frontend.
 
 ### Proveedor de datos de mercado
-- El menú **Gráfica** del dashboard consume velas OHLC del proveedor **Massive** (rebranding de Polygon.io).
-- API key guardada en `adminConfig/apiKeys.massive` (configurable desde `/admin/settings`).
-- Endpoints consumidos: `/v2/aggs/ticker/{symbol}/range/{mult}/{timespan}/{from}/{to}`.
-- Símbolos actuales: `I:NDX` (NASDAQ 100), `I:SPX` (S&P 500).
-- Plan free (Indices Basic): 5 calls/min, 1+ año histórico, intraday con delay.
+- El menú **Gráfica** del dashboard consume velas OHLC del proveedor **EODHD** (EOD Historical Data).
+- API key guardada en `adminConfig/apiKeys.eodhd` (configurable desde `/admin/settings`).
+- Símbolos actuales: `NDX.INDX` (NASDAQ 100), `GSPC.INDX` (S&P 500).
+- Timeframes soportados: `1m`, `5m`, `1h` (intraday) y `1d` (EOD).
+- Endpoints consumidos:
+  - EOD (`1d`): `GET /api/eod/{symbol}?api_token=...&period=d&from=YYYY-MM-DD&to=YYYY-MM-DD&fmt=json`
+  - Intraday (`1m`/`5m`/`1h`): `GET /api/intraday/{symbol}?api_token=...&interval={1m|5m|1h}&from={epoch}&to={epoch}&fmt=json`
+- Plan actual: **All World Extended** (pago, $19.99+/mes) — EOD + intraday incluido.
+- Limitaciones de ventana por intervalo (EODHD): 1m ≤ 120 días, 5m ≤ 600 días, 1h ≤ 7200 días.
+- TTL de cache configurable en `adminConfig/marketData.cacheTtlSeconds` (default 900s = 15 min), editable desde `/admin/settings`.
 
 ---
 

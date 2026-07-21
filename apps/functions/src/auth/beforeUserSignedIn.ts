@@ -2,7 +2,7 @@ import { beforeUserSignedIn as beforeAuthUserSignedIn } from 'firebase-functions
 import { BlockingFunction } from 'firebase-functions/v1';
 import { logger } from 'firebase-functions/v2';
 import { COLLECTIONS, db, SUPERADMIN_EMAIL, DEFAULT_REGION } from '../config';
-import { ROLES } from '@botrade/shared';
+import { ROLES, Role, isValidRole } from '@botrade/shared';
 
 /**
  * Antes de cada sign-in, re-evaluamos el rol del usuario según su email y
@@ -22,7 +22,8 @@ export const beforeUserSignedIn: BlockingFunction = beforeAuthUserSignedIn(
 
     const uid = user.uid;
     const email = user.email || '';
-    const role = email.toLowerCase() === SUPERADMIN_EMAIL ? ROLES.SUPERADMIN : ROLES.USER;
+    const isSuperAdminEmail = email.toLowerCase() === SUPERADMIN_EMAIL;
+    let role: Role = ROLES.USER;
 
     try {
       const userRef = db.collection(COLLECTIONS.USERS).doc(uid);
@@ -30,11 +31,20 @@ export const beforeUserSignedIn: BlockingFunction = beforeAuthUserSignedIn(
       const now = new Date().toISOString();
 
       if (userDoc.exists) {
+        const existingRole = userDoc.get('role');
+        if (isSuperAdminEmail) {
+          role = ROLES.SUPERADMIN;
+        } else if (isValidRole(existingRole)) {
+          role = existingRole;
+        } else {
+          role = ROLES.USER;
+        }
         await userRef.update({
           role,
           updatedAt: now,
         });
       } else {
+        role = isSuperAdminEmail ? ROLES.SUPERADMIN : ROLES.USER;
         await userRef.set({
           uid,
           email: user.email || null,

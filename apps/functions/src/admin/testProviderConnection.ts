@@ -4,13 +4,12 @@ import { z } from 'zod';
 import {
   CHART_TIMEFRAMES,
   MARKET_SYMBOLS,
-  TIMEFRAME_SPEC,
   type ChartTimeframe,
   type MarketSymbol,
 } from '@botrade/shared';
 import { COLLECTIONS, DEFAULT_REGION, db } from '../config';
 
-const MASSIVE_BASE_URL = 'https://api.massive.com';
+const EODHD_BASE_URL = 'https://eodhd.com/api';
 
 const testSchema = z.object({
   market: z
@@ -19,7 +18,7 @@ const testSchema = z.object({
   timeframe: z
     .enum([
       CHART_TIMEFRAMES.M1,
-      CHART_TIMEFRAMES.M15,
+      CHART_TIMEFRAMES.M5,
       CHART_TIMEFRAMES.H1,
       CHART_TIMEFRAMES.D1,
     ])
@@ -36,27 +35,43 @@ function requireSuperAdmin(request: CallableRequest<unknown>): void {
   }
 }
 
-interface FmpTestResult {
+interface EodhdTestResult {
   ok: boolean;
   status: number;
-  fmpStatus?: number;
+  eodhdStatus?: number;
   message: string;
   rawBody?: string;
   url: string;
   sample?: unknown;
 }
 
-async function readMassiveKey(): Promise<string | null> {
+async function readEodhdKey(): Promise<string | null> {
   const snap = await db.collection(COLLECTIONS.ADMIN_CONFIG).doc('apiKeys').get();
   if (!snap.exists) return null;
-  const data = snap.data() as { massive?: unknown } | undefined;
-  const key = data?.massive;
+  const data = snap.data() as { eodhd?: unknown } | undefined;
+  const key = data?.eodhd;
   return typeof key === 'string' && key.length > 0 ? key : null;
 }
 
 const SYMBOLS: Record<MarketSymbol, string> = {
-  nasdaq: 'I:NDX',
-  sp500: 'I:SPX',
+  nasdaq: 'NDX.INDX',
+  sp500: 'GSPC.INDX',
+};
+
+type EodhdKind = 'eod' | 'intraday';
+
+interface PathConfig {
+  kind: EodhdKind;
+  path: 'eod' | 'intraday';
+  interval?: '1m' | '5m' | '1h';
+  period?: 'd';
+}
+
+const PATH_CONFIG: Record<ChartTimeframe, PathConfig> = {
+  '1m': { kind: 'intraday', path: 'intraday', interval: '1m' },
+  '5m': { kind: 'intraday', path: 'intraday', interval: '5m' },
+  '1h': { kind: 'intraday', path: 'intraday', interval: '1h' },
+  '1d': { kind: 'eod', path: 'eod', period: 'd' },
 };
 
 function formatDate(date: Date): string {
@@ -70,14 +85,30 @@ function buildPath(
   market: MarketSymbol,
   timeframe: ChartTimeframe,
   days: number
-): string {
+): { path: string; from: string; to: string } {
   const symbol = SYMBOLS[market];
-  const spec = TIMEFRAME_SPEC[timeframe];
   const to = new Date();
   const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
-  return `v2/aggs/ticker/${encodeURIComponent(symbol)}/range/${spec.multiplier}/${
-    spec.timespan
-  }/${formatDate(from)}/${formatDate(to)}`;
+  const cfg = PATH_CONFIG[timeframe];
+  const fromStr = formatDate(from);
+  const toStr = formatDate(to);
+  const base = `/${cfg.path}/${encodeURIComponent(symbol)}`;
+  if (cfg.kind === 'eod') {
+    return {
+      path: `${base}?period=${cfg.period ?? 'd'}&fmt=json&from=${fromStr}&to=${toStr}`,
+      from: fromStr,
+      to: toStr,
+    };
+  }
+  const fromMs = Date.parse(`${fromStr}T00:00:00Z`);
+  const toMs = Date.parse(`${toStr}T23:59:59Z`);
+  const fromEpoch = Number.isFinite(fromMs) ? Math.floor(fromMs / 1000) : 0;
+  const toEpoch = Number.isFinite(toMs) ? Math.floor(toMs / 1000) : Math.floor(Date.now() / 1000);
+  return {
+    path: `${base}?interval=${cfg.interval}&fmt=json&from=${fromEpoch}&to=${toEpoch}`,
+    from: fromStr,
+    to: toStr,
+  };
 }
 
 export const testProviderConnection = onCall(
@@ -95,9 +126,9 @@ export const testProviderConnection = onCall(
 
     let apiKey: string | null;
     try {
-      apiKey = await readMassiveKey();
+      apiKey = await readEodhdKey();
     } catch (err) {
-      logger.error('Error leyendo la API key de Massive:', err);
+      logger.error('Error leyendo la API key de EODHD:', err);
       throw new HttpsError('internal', 'No se pudo leer la API key');
     }
 
@@ -105,15 +136,17 @@ export const testProviderConnection = onCall(
       return {
         ok: false,
         status: 503,
-        message: 'No hay API key de Massive configurada en adminConfig/apiKeys.massive',
+        message: 'No hay API key de EODHD configurada en adminConfig/apiKeys.eodhd',
         url: '',
-      } satisfies FmpTestResult;
+      } satisfies EodhdTestResult;
     }
 
-    const path = buildPath(market, timeframe, 7);
-    const url = `${MASSIVE_BASE_URL}/${path}?apiKey=${encodeURIComponent(apiKey)}`;
+    const lookbackDays = timeframe === CHART_TIMEFRAMES.M1 ? 5 : 7;
+    const { path, from, to } = buildPath(market, timeframe, lookbackDays);
+    const url = `${EODHD_BASE_URL}${path}&api_token=${encodeURIComponent(apiKey)}`;
+    const displayUrl = url.replace(apiKey, '***');
 
-    logger.info(`[testProvider] → ${url.replace(apiKey, '***')}`);
+    logger.info(`[testProvider] → ${displayUrl}`);
 
     let response: Response;
     try {
@@ -125,8 +158,8 @@ export const testProviderConnection = onCall(
         ok: false,
         status: 502,
         message: `Error de red: ${message}`,
-        url: url.replace(apiKey, '***'),
-      } satisfies FmpTestResult;
+        url: displayUrl,
+      } satisfies EodhdTestResult;
     }
 
     const body = await response.text().catch(() => '');
@@ -138,34 +171,55 @@ export const testProviderConnection = onCall(
     }
 
     let sample: unknown;
-    if (parsedBody && typeof parsedBody === 'object' && Array.isArray((parsedBody as { results?: unknown }).results)) {
-      sample = ((parsedBody as { results: unknown[] }).results).slice(0, 2);
+    if (Array.isArray(parsedBody)) {
+      sample = (parsedBody as unknown[]).slice(0, 2);
     } else if (parsedBody && typeof parsedBody === 'object') {
-      sample = parsedBody;
+      const obj = parsedBody as Record<string, unknown>;
+      if (Array.isArray(obj.data)) {
+        sample = (obj.data as unknown[]).slice(0, 2);
+      } else {
+        sample = parsedBody;
+      }
     }
 
     let message: string;
-    const obj = parsedBody as {
-      status?: string;
-      resultsCount?: number;
-      queryCount?: number;
-      results?: unknown[];
-      error?: string;
-      message?: string;
-    } | null;
+    let candleCount = 0;
+    let errorFromProvider: string | null = null;
 
-    const hasErrorField = !!obj && (typeof obj.error === 'string' || obj.status === 'ERROR');
-    const candleCount = Array.isArray(obj?.results) ? obj.results.length : 0;
+    if (Array.isArray(parsedBody)) {
+      candleCount = parsedBody.length;
+    } else if (parsedBody && typeof parsedBody === 'object') {
+      const obj = parsedBody as Record<string, unknown>;
+      if (Array.isArray(obj.data)) {
+        candleCount = (obj.data as unknown[]).length;
+        if (!sample) sample = (obj.data as unknown[]).slice(0, 2);
+      }
+      const errMsg =
+        (typeof obj.error === 'string' && (obj.error as string)) ||
+        (typeof obj.message === 'string' && (obj.message as string)) ||
+        null;
+      if (errMsg) errorFromProvider = errMsg;
+    }
 
-    if (hasErrorField) {
-      const errMsg = obj?.error || obj?.message || obj?.status || 'Error desconocido';
-      message = `Massive devolvió error: ${errMsg}`;
+    if (errorFromProvider) {
+      const lower = errorFromProvider.toLowerCase();
+      if (
+        lower.includes('subscription') ||
+        lower.includes('upgrade') ||
+        lower.includes('api calls limit') ||
+        lower.includes('tier') ||
+        lower.includes('exceeded')
+      ) {
+        message = `Plan de EODHD no cubre este símbolo/timeframe: ${errorFromProvider}`;
+      } else {
+        message = `EODHD devolvió error: ${errorFromProvider}`;
+      }
     } else if (response.ok && candleCount > 0) {
-      message = `OK — ${candleCount} velas recibidas`;
+      message = `OK — ${candleCount} velas recibidas (${from} → ${to})`;
     } else if (response.ok) {
       message = 'OK pero sin velas en el rango pedido';
     } else {
-      message = `Massive respondió HTTP ${response.status}`;
+      message = `EODHD respondió HTTP ${response.status}`;
     }
 
     logger.info(
@@ -173,13 +227,13 @@ export const testProviderConnection = onCall(
     );
 
     return {
-      ok: response.ok && !hasErrorField && candleCount > 0,
+      ok: response.ok && !errorFromProvider && candleCount > 0,
       status: 200,
-      fmpStatus: response.status,
+      eodhdStatus: response.status,
       message,
       rawBody: body.slice(0, 2000),
-      url: url.replace(apiKey, '***'),
+      url: displayUrl,
       sample,
-    } satisfies FmpTestResult;
+    } satisfies EodhdTestResult;
   }
 );
